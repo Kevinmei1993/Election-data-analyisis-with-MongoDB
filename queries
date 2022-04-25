@@ -1,0 +1,155 @@
+i) Which party received the second highest number of votes in the “angus east” constituency?
+
+[{$match: {
+  "area": "$constituency"
+}}, {$unwind: {
+  'path': '$ukresults'
+}}, {$sort: {
+  "ukresults.ukvotes": -1
+}}, {$skip: 1}, {$limit: 1}, {$project: {
+  'party': '$ukresults.party'
+}}]
+
+
+
+
+ii) Which parties contested the “putney” constituency, and what percentage of the vote did each
+party receive in that constituency?
+
+[{$match: {
+  'area': {
+    '$eq': "$constituency"
+  }
+}}, {$unwind: {
+  'path': '$ukresults'
+}}, {$group: {
+  '_id': '$_id',
+  'totalVotes': {
+    '$sum': '$ukresults.ukvotes'
+  },
+  'ukresults': {
+    '$push': '$ukresults'
+  }
+}}, {$unwind: {
+  'path': '$ukresults'
+}}, {$project: {
+  '_id': 0,
+  'party': '$ukresults.party',
+  'percentage': {
+    '$multiply': [{
+      '$divide': ['$ukresults.ukvotes', '$totalVotes']
+    }, 100]
+  }
+}}, {$sort: {
+  'percentage': -1
+}}]
+
+iii) What is the largest difference between votes cast for two candidates in the same constituency?
+
+[{$unwind: {
+  'path': '$ukresults'
+}}, {$group: {
+  '_id': '$_id',
+  'highest': {
+    '$first': '$ukresults.ukvotes'
+  },
+  'lowest': {
+    '$last': '$ukresults.ukvotes'
+  }
+}}, {$project: {
+  '_id': 0,
+  'difference': {
+    '$subtract': ['$highest', '$lowest']
+  }
+}}, {$sort: {
+  'difference': -1
+}}, {$limit: 1}]
+
+
+iv) What is the constituency name and the total votes cast in each constituency where more
+than 55000 votes were cast in total?
+
+
+[{$unwind: {
+  'path': '$ukresults'
+}}, {$group: {
+  '_id': '$area',
+  'total': {
+    '$sum': '$ukresults.ukvotes'
+  }
+}}, {$match: {
+  'total': {
+    '$gt': $numVotes
+  }
+}}, {$project: {
+  '_id': 0,
+  'area': '$_id',
+  'totalVotes': '$total'
+}}, {$sort: {
+  'area': 1
+}}]
+
+
+v) In which constituencies did the “eco” party lose its deposit?
+
+
+[{$unwind: {
+  'path': '$ukresults'
+}}, {$group: {
+  '_id': '$_id',
+  'total': {
+    '$sum': '$ukresults.ukvotes'
+  },
+  'party': {
+    '$push': {
+      'area': '$area',
+      'ukresults': '$ukresults'
+    }
+  }
+}}, {$unwind: {
+  'path': '$party'
+}}, {$project: {
+  'area': '$party.area',
+  'party': '$party.ukresults.party',
+  'ukvotes': '$party.ukresults.ukvotes',
+  'totalVotes': '$total',
+  'percentage': {
+    '$multiply': [{
+      '$divide': ['$party.ukresults.ukvotes', '$total']
+    }, 100]
+  }
+}}, {$match: {
+  'party': "$party",
+  'percentage': {
+    '$lt': 5
+  }
+}}, {$project: {
+  '_id': 0,
+  'constituency': '$area'
+}}]
+
+
+vi) What is the smallest vote received by the Labour party in any constituency where no more than
+five parties including Labour had candidates?
+
+{$project: {
+  'area': 1,
+  'numberOfParties': {
+    '$size': '$ukresults'
+  },
+  'ukresults': 1
+}}, {$unwind: {
+  'path': '$ukresults'
+}}, {$match: {
+  'numberOfParties': {
+    '$lte': 5
+  },
+  'ukresults.party': {
+    '$eq': 'lab'
+  }
+}}, {$sort: {
+  'ukresults.ukvotes': 1
+}}, {$limit: 1}, {$project: {
+  '_id': 0,
+  'smallestLabVote': '$ukresults.ukvotes'
+}}]
